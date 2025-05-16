@@ -1,0 +1,10 @@
+version: 5.5.0.4
+type: common
+authorName: "Ilya I"
+moduleName: 'TaxCloud'
+description: 'Calculate sales tax, manage tax exemptions and file returns.'
+minorRequiredCoreVersion: 0
+dependsOn: {  }
+incompatibleWith: {  }
+showSettingsForm: true
+canDisable: true

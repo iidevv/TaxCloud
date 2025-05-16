@@ -1,0 +1,69 @@
+XLite\Model\Config:
+  - name: taxcloud_sep_1
+    category: Iidev\TaxCloud
+    type: separator
+    orderby: 1000
+    translations:
+      - code: en
+        option_name: 'Account settings'
+  - name: api_login_id
+    category: Iidev\TaxCloud
+    type: text
+    orderby: 1100
+    translations:
+      - code: en
+        option_name: 'API Login id'
+  - name: api_key
+    category: Iidev\TaxCloud
+    type: text
+    orderby: 1200
+    translations:
+      - code: en
+        option_name: 'API key'
+  - name: taxcloud_sep_2
+    category: Iidev\TaxCloud
+    type: separator
+    orderby: 2000
+    translations:
+      - code: en
+        option_name: 'Tax Calculation settings'
+  - name: taxcalculation
+    category: Iidev\TaxCloud
+    type: checkbox
+    value: 'Y'
+    orderby: 2100
+    translations:
+      - code: en
+        option_name: 'Enable tax calculation'
+  - name: taxcloud_sep_3
+    category: Iidev\TaxCloud
+    type: separator
+    orderby: 3000
+    translations:
+      - code: en
+        option_name: 'Address verification settings'
+  - name: addressverif
+    category: Iidev\TaxCloud
+    type: checkbox
+    value: 'Y'
+    orderby: 3100
+    translations:
+      - code: en
+        option_name: 'Enable address verification'
+  - name: taxcloud_sep_4
+    category: Iidev\TaxCloud
+    type: separator
+    orderby: 4000
+    translations:
+      - code: en
+        option_name: 'Advanced settings'
+  - name: debugmode
+    category: Iidev\TaxCloud
+    type: checkbox
+    orderby: 4200
+    translations:
+      - code: en
+        option_name: 'Debug mode'
+
+XLite\Model\Order\Modifier:
+  - { class: 'Iidev\TaxCloud\Logic\Order\Modifier\StateTax', weight: 1000 }
