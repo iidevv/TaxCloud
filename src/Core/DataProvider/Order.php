@@ -27,16 +27,6 @@ class Order
             : '';
     }
 
-    public function transactionCodeEncoded(string $postfix = ''): string
-    {
-        return $this->prepareForURL($this->getTransactionCode() . $postfix);
-    }
-
-    public function companyCodeEncoded(): string
-    {
-        return $this->prepareForURL(Config::getInstance()->Iidev->TaxCloud->companycode);
-    }
-
     public function getVoidTransactionModel(string $reason): array
     {
         return ['code' => $reason];
@@ -92,19 +82,5 @@ class Order
         }
 
         return $result;
-    }
-
-    private function prepareForURL(string $str): string
-    {
-        $map = [
-            '/' => '_-ava2f-_',
-            '+' => '_-ava2b-_',
-            '?' => '_-ava3f-_',
-            '%' => '_-ava25-_',
-            '#' => '_-ava23-_',
-            ' ' => '%20',
-        ];
-
-        return strtr($str, $map);
     }
 }

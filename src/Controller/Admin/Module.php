@@ -5,15 +5,12 @@ namespace Iidev\TaxCloud\Controller\Admin;
 
 use XCart\Extender\Mapping\Extender;
 
-use XLite\InjectLoggerTrait;
 /**
  * Module settings
  * @Extender\Mixin
  */
 abstract class Module extends \XLite\Controller\Admin\Module
 {
-    use InjectLoggerTrait;
-
     /**
      * Preprocessor for no-action run
      *
@@ -46,6 +43,7 @@ abstract class Module extends \XLite\Controller\Admin\Module
                     'location_zipcode' => $company->location_zipcode,
                 ];
                 [$address, $messages] = \Iidev\TaxCloud\Core\TaxCore::getInstance()->validateAddress($address);
+                
                 if ($messages) {
                     \XLite\Core\TopMessage::addError(
                         'Invalid company address. Please follow this link and correct the address.',

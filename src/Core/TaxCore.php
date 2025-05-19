@@ -5,6 +5,7 @@ namespace Iidev\TaxCloud\Core;
 
 use Iidev\TaxCloud\Main;
 use XLite\InjectLoggerTrait;
+use function PHPUnit\Framework\isNull;
 
 /**
  * AcaTax client
@@ -64,7 +65,7 @@ class TaxCore extends \XLite\Base\Singleton
         $dataProvider = new DataProvider\Order($order);
         $data = $dataProvider->getAdjustTransactionModel($oldOrderData, $reason, $reasonDescription);
         $this->taxcloudRequest(
-            "companies/{$dataProvider->companyCodeEncoded()}/transactions/{$dataProvider->transactionCodeEncoded()}/adjust",
+            "Returned",
             $data
         );
     }
@@ -74,7 +75,7 @@ class TaxCore extends \XLite\Base\Singleton
         $dataProvider = new DataProvider\Order($order ?: $transaction->getPaymentTransaction()->getOrder());
         $data = $dataProvider->getRefundTransactionModel($transaction);
         $this->taxcloudRequest(
-            "companies/{$dataProvider->companyCodeEncoded()}/transactions/{$dataProvider->transactionCodeEncoded()}/refund",
+            "Returned",
             $data
         );
     }
@@ -84,25 +85,9 @@ class TaxCore extends \XLite\Base\Singleton
         $dataProvider = new DataProvider\Order($order);
         $data = $dataProvider->getVoidTransactionModel($reason);
         $this->taxcloudRequest(
-            "companies/{$dataProvider->companyCodeEncoded()}/transactions/{$dataProvider->transactionCodeEncoded()}/void",
+            "Returned",
             $data
         );
-
-        // void possible refund transactions
-        foreach (($order->getPaymentTransactions() ?? []) as $paymentTransaction) {
-            foreach (($paymentTransaction->getBackendTransactions() ?? []) as $backendTransaction) {
-                if (
-                    stripos($backendTransaction->getType(), 'refund') !== false
-                    && !in_array($backendTransaction->getStatus(), self::FAILED_BACKEND_STATUSES)
-                ) {
-                    $refundTransactionCode = $dataProvider->transactionCodeEncoded(DataProvider\Order::REFUND_POSTFIX . $backendTransaction->getId());
-                    $this->taxcloudRequest(
-                        "companies/{$dataProvider->companyCodeEncoded()}/transactions/$refundTransactionCode/void",
-                        $data
-                    );
-                }
-            }
-        }
     }
 
     // {{{ Test connection
@@ -118,9 +103,9 @@ class TaxCore extends \XLite\Base\Singleton
 
         $result = $data && $data['ResponseType'] === 3;
         if (!$result && !empty($data['Messages'])) {
-             foreach ($data['Messages'] as $message) {
+            foreach ($data['Messages'] as $message) {
                 $messages[] = $message['Message'];
-             }
+            }
         }
 
         return $result;
@@ -265,24 +250,13 @@ class TaxCore extends \XLite\Base\Singleton
     {
         $result = [];
 
-        if (!empty($data['messages'])) {
-            if (empty($message['details'])) {
-                // System error
-                $this->getLogger('Iidev->TaxCloud')->error($message['summary']);
-
-                $result[] = [
-                    'name' => $message['refersTo'],
-                    'message' => $message['details'],
-                ];
-            } else {
-                // Business logic error
-                $cell = $this->assembleAddressValidationMessage($message, $address);
-                if ($cell) {
-                    $result[] = $cell;
-                }
-            }
-        } elseif (!empty($data['validatedAddresses'])) {
-            $address = $this->assembleAddressSanitaizedData($address, current($data['validatedAddresses']));
+        if (!isNull($data['ErrDescription'])) {
+            $result[] = [
+                null,
+                'message' => $data['ErrDescription'],
+            ];
+        } else {
+            $address = $this->assembleAddressSanitaizedData($address, $data);
         }
 
         return [$address, $result];
@@ -440,29 +414,24 @@ class TaxCore extends \XLite\Base\Singleton
     protected function assembleAddressSanitaizedData($address, array $data)
     {
         if (is_array($address) && is_object(current($address))) {
-            // Address from XLite\View\Model\Address\Address
-            $country = null;
             $state = null;
             $oldStateValue = null;
             foreach ($data as $n => $value) {
                 switch ($n) {
-                    case 'line1':
+                    case 'Address1':
                         $name = 'street';
                         break;
 
-                    case 'region':
-                        $name = 'state_id';
-                        break;
-
-                    case 'city':
+                    case 'City':
                         $name = 'city';
                         break;
 
-                    case 'country':
-                        $name = 'country_code';
+                    case 'State':
+                        $name = 'state_id';
                         break;
 
-                    case 'postalCode':
+                    case 'Zip5':
+                    case 'Zip4':
                         $name = 'zipcode';
                         break;
 
@@ -474,11 +443,14 @@ class TaxCore extends \XLite\Base\Singleton
                     foreach ($address as $f) {
                         $parts = explode('_', $f->getName(), 2);
                         if ($name == $parts[1]) {
-                            if ($name == 'country_code') {
-                                $country = $f;
-                            } elseif ($name == 'state_id') {
+                            if ($name === 'state_id') {
                                 $state = $f;
                                 $oldStateValue = $f->getValue();
+                            }
+
+                            // Concatenate ZIP5 and ZIP4
+                            if ($name === 'zipcode' && isset($data['Zip5'], $data['Zip4'])) {
+                                $value = $data['Zip5'] . '-' . $data['Zip4'];
                             }
 
                             $f->setValue($value);
@@ -488,42 +460,42 @@ class TaxCore extends \XLite\Base\Singleton
                 }
             }
 
-            if ($country && $state) {
-                $sid = $this->processAddressState($country->getValue(), $state->getValue());
+            if ($state) {
+                $sid = $this->processAddressState(null, $state->getValue());
                 if ($sid) {
                     $state->setValue($sid);
                 } else {
                     $state->setValue($oldStateValue);
                 }
             }
-        } elseif (is_array($address) && !empty($address['line1'])) {
-            // Address from static::getStateTax()
+        } elseif (is_array($address) && !empty($address['Address1'])) {
             foreach ($data as $n => $value) {
+                if (in_array($n, ['Zip5', 'Zip4']) && isset($data['Zip5'], $data['Zip4'])) {
+                    $address['zipcode'] = $data['Zip5'] . '-' . $data['Zip4'];
+                    continue;
+                }
+
                 if (isset($address[$n])) {
                     $address[$n] = $value;
                 }
             }
         } elseif (is_array($address) && !empty($address['location_country'])) {
-            // Address from XLite\View\Model\Settings
             foreach ($data as $n => $value) {
                 switch ($n) {
-                    case 'line1':
+                    case 'Address1':
                         $name = 'location_address';
                         break;
 
-                    case 'city':
+                    case 'City':
                         $name = 'location_city';
                         break;
 
-                    case 'region':
+                    case 'State':
                         $name = 'location_state';
                         break;
 
-                    case 'country':
-                        $name = 'location_country';
-                        break;
-
-                    case 'postalCode':
+                    case 'Zip5':
+                    case 'Zip4':
                         $name = 'location_zipcode';
                         break;
 
@@ -532,6 +504,9 @@ class TaxCore extends \XLite\Base\Singleton
                 }
 
                 if ($name) {
+                    if ($name === 'location_zipcode' && isset($data['Zip5'], $data['Zip4'])) {
+                        $value = $data['Zip5'] . '-' . $data['Zip4'];
+                    }
                     $address[$name] = $value;
                 }
             }
@@ -542,49 +517,29 @@ class TaxCore extends \XLite\Base\Singleton
             } else {
                 unset($address['location_state']);
             }
-        } elseif (is_array($address) && !empty($address['state_id'])) {
-            // Address from XLite\Controller\Customer\Checkout
+        } elseif (is_array($address) && !empty($address['State'])) {
             foreach ($data as $n => $value) {
-                switch ($n) {
-                    case 'line1':
-                        $name = 'street';
-                        break;
-
-                    case 'city':
-                        $name = 'city';
-                        break;
-
-                    case 'region':
-                        $name = 'state_id';
-                        break;
-
-                    case 'country':
-                        $name = 'country_code';
-                        break;
-
-                    case 'postalCode':
-                        $name = 'zipcode';
-                        break;
-
-                    default:
-                        $name = null;
+                if (in_array($n, ['Zip5', 'Zip4']) && isset($data['Zip5'], $data['Zip4'])) {
+                    $address['Zip'] = $data['Zip5'] . '-' . $data['Zip4'];
+                    continue;
                 }
 
-                if ($name) {
-                    $address[$name] = $value;
+                if (isset($address[$n])) {
+                    $address[$n] = $value;
                 }
             }
 
-            $sid = $this->processAddressState($address['country_code'], $address['state_id']);
+            $sid = $this->processAddressState(null, $address['State']);
             if ($sid) {
-                $address['state_id'] = $sid;
+                $address['State'] = $sid;
             } else {
-                unset($address['state_id']);
+                unset($address['State']);
             }
         }
 
         return $address;
     }
+
 
     /**
      * Process address state
@@ -658,31 +613,19 @@ class TaxCore extends \XLite\Base\Singleton
         $errors = false;
         $result = [];
 
-        if (!empty($data['error'])) {
+        if (!empty($data['Messages'])) {
             $errors = [];
-            $errorData = $data['error'];
-            $this->getLogger('Iidev->TaxCloud')->error($errorData['message']);
-            $errors[] = $errorData['message'];
-        } elseif (!empty($data['summary'])) {
-            foreach ($data['summary'] as $row) {
-                if ($row['tax'] > 0) {
-                    $code = str_replace(' ', '_', $row['taxName']);
-                    $name = $row['taxName'];
 
-                    if (
-                        isset($row['jurisType'])
-                        && strtolower($row['jurisType']) === 'special'
-                    ) {
-                        $addName = $row['jurisName'] ?? 'Special';
+            foreach ($data['Messages'] as $message) {
+                $errors[] = $message['Message'];
+            }
 
-                        $code = sprintf('%s_%s', $code, str_replace(' ', '_', $addName));
-                        $name = sprintf('%s (%s)', $name, $addName);
-                    }
-
-                    $result[$code] = [
-                        'code' => $code,
-                        'name' => $name,
-                        'cost' => $row['tax'],
+            $this->getLogger('Iidev->TaxCloud')->error('', $errors);
+        } elseif (!empty($data['CartItemsResponse'])) {
+            foreach ($data['CartItemsResponse'] as $row) {
+                if ($row['TaxAmount'] > 0) {
+                    $result[$row['CartItemIndex']] = [
+                        'cost' => $row['TaxAmount'],
                     ];
                 }
             }
@@ -706,129 +649,60 @@ class TaxCore extends \XLite\Base\Singleton
      */
     protected function getInformation(\XLite\Model\Order $order, array &$messages)
     {
-        $config = \XLite\Core\Config::getInstance()->Iidev->TaxCloud;
-        $address = $order->getProfile()->getBillingAddress();
-
-        $company = $this->getConfigCompany($order);
+        $destination = $order->getProfile()->getShippingAddress();
         $currency = $order->getCurrency();
+        $company = $this->getConfigCompany($order);
 
-        $dataProvider = new DataProvider\Order($order);
+        $originalZip4 = (int) substr($company->origin_zipcode, 6, 4);
+        $destinationZip4 = (int) substr($destination->getZipcode(), 6, 4);
+
         $post = [
-            'client' => 'X-Cart 5',
-            'companyCode' => $config->companycode,
-            'code' => $dataProvider->getTransactionCode() ?: '',
-            'customerCode' => $order->getProfile()->getProfileId(),
-            'currencyCode' => $currency->getCode(),
-            'discount' => 0,
-            'date' => date('Y-m-d'),
-            'type' => $this->shouldRecordTransaction() ? 'SalesInvoice' : 'SalesOrder',
-            'commit' => $this->isCommitOnPlaceOrder(),
-            'lines' => [],
-            'addresses' => [
-                'ShipFrom' => [
-                    'line1' => $company->origin_address,
-                    'city' => $company->origin_city,
-                    'region' => $company->originState
-                        ? $company->originState->getCode()
-                        : '',
-                    'country' => $company->origin_country,
-                    'postalCode' => $company->origin_zipcode,
-                ],
-                'ShipTo' => [
-                    'line1' => $address->getStreet(),
-                    'city' => $address->getCity(),
-                    'region' => $address->getState()
-                        ? $address->getState()->getCode()
-                        : '',
-                    'country' => $address->getCountry()
-                        ? $address->getCountry()->getCode()
-                        : '',
-                    'postalCode' => $address->getZipcode(),
-                ],
+            'cartID' => $order->getOrderId(),
+            'customerID' => $order->getProfile()->getProfileId(),
+            'deliveredBySeller' => false,
+            'cartItems' => [],
+            'origin' => [
+                'Address1' => $company->origin_address,
+                'Address2' => '',
+                'City' => $company->origin_city,
+                'State' => $company->originState ? $company->originState->getCode() : '',
+                'Zip5' => (int) substr($company->origin_zipcode, 0, 5),
+            ],
+            'destination' => [
+                'Address1' => $destination->getStreet(),
+                'Address2' => $destination->getStreet2(),
+                'City' => $destination->getCity(),
+                'State' => $destination->getState() ? $destination->getState()->getCode() : '',
+                'Zip5' => (int) substr($destination->getZipcode(), 0, 5),
             ],
         ];
 
-        $saddress = null;
-        if ($order->isShippable() && !$order->getProfile()->isSameAddress() && $order->getProfile()->getShippingAddress()) {
-            $saddress = $order->getProfile()->getShippingAddress();
-            $post['addresses']['ShipTo'] = [
-                'line1' => $saddress->getStreet(),
-                'city' => $saddress->getCity(),
-                'region' => $saddress->getState()
-                    ? $saddress->getState()->getCode()
-                    : '',
-                'country' => $saddress->getCountry()
-                    ? $saddress->getCountry()->getCode()
-                    : '',
-                'postalCode' => $saddress->getZipcode(),
+        if ($originalZip4) {
+            $post['origin']['Zip4'] = $originalZip4;
+        }
+
+        if ($destinationZip4) {
+            $post['destination']['Zip4'] = $destinationZip4;
+        }
+
+        foreach ($order->getItems() as $i => $item) {
+            $total = (float) $item->getTotal();
+            $amount = (int) $item->getAmount();
+            $unitPrice = $amount > 0 ? $currency->roundValue($total / $amount) : 0.0;
+
+            $post['cartItems'][] = [
+                'Index' => $i,
+                'ItemID' => $this->assembleItemCode($item),
+                'Price' => $unitPrice,
+                'Qty' => $amount,
+                'TIC' => (int) $item->getProduct()->getTaxCloudCode(),
+                'Tax' => 0.0,
             ];
-        }
-
-        // Discount
-        $cost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_DISCOUNT);
-        if ($cost < 0) {
-            $post['discount'] = $currency->roundValue(abs($cost));
-        }
-
-        foreach ($order->getItems() as $item) {
-            $post['lines'][] = [
-                'number' => $item->getItemId(),
-                'address' => $saddress ? $saddress->getAddressId() : $address->getAddressId(),
-                'itemCode' => $this->assembleItemCode($item),
-                'description' => $item->getName(),
-                'quantity' => $item->getAmount(),
-                'amount' => $currency->roundValue($item->getTotal()),
-            ];
-
-            if ($item->getProduct()->getTaxCloudCode()) {
-                $post['lines'][count($post['lines']) - 1]['taxCode'] = $item->getProduct()->getTaxCloudCode();
-            }
-
-            if ($post['discount'] > 0) {
-                $post['lines'][count($post['lines']) - 1]['discounted'] = true;
-            }
-        }
-
-        // Shipping
-        $shipping = $order->getModifier(\XLite\Model\Base\Surcharge::TYPE_SHIPPING, 'SHIPPING');
-        if ($shipping && $shipping->getSelectedRate() && $shipping->getSelectedRate()->getMethod()) {
-            $cost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_SHIPPING);
-            $post['lines'][] = [
-                'number' => \XLite\Model\Base\Surcharge::TYPE_SHIPPING,
-                'quantity' => 1,
-                'amount' => $currency->roundValue($cost),
-                'taxCode' => 'FR',
-            ];
-        }
-
-        // Any surcharges and handlings
-        $cost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_HANDLING);
-        if ($cost > 0) {
-            $post['lines'][] = [
-                'number' => \XLite\Model\Base\Surcharge::TYPE_HANDLING,
-                'address' => $saddress ? $saddress->getAddressId() : $address->getAddressId(),
-                'quantity' => 1,
-                'amount' => $currency->roundValue($cost),
-            ];
-        }
-
-        // Special fee tax
-        if (self::shouldAddColoradoTax($order)) {
-            $post = self::addColoradoTaxLine($post);
-        }
-
-        // Exemption number
-        if ($order->getProfile()->getTaxCloudExemptionNumber()) {
-            $post['exemptionNo'] = $order->getProfile()->getTaxCloudExemptionNumber();
-        }
-
-        // Usage type
-        if ($order->getProfile()->getTaxCloudCustomerUsageType()) {
-            $post['customerUsageType'] = $order->getProfile()->getTaxCloudCustomerUsageType();
         }
 
         return $post;
     }
+
 
     /**
      * Check - address verification is allowed or not
@@ -938,7 +812,8 @@ class TaxCore extends \XLite\Base\Singleton
     {
         $result = [false, []];
         if ($data) {
-            [$result, $taxes] = $this->taxcloudRequest('transactions/create', $data);
+            [$result, $taxes] = $this->taxcloudRequest('Lookup', $data);
+
             $result = $taxes ? $this->processTaxes($taxes) : [false, []];
         }
 
@@ -967,11 +842,13 @@ class TaxCore extends \XLite\Base\Singleton
             ? json_decode($result->body, true)
             : null;
 
-        $this->getLogger('Iidev->TaxCloud')->error('API request', [
-            'url' => $fullURL,
-            'request' => $data,
-            'response' => $decodedResponse,
-        ]);
+        if ($config->debugmode) {
+            $this->getLogger('Iidev->TaxCloud')->error('API request', [
+                'url' => $fullURL,
+                'request' => $data,
+                'response' => $decodedResponse,
+            ]);
+        }
 
         return [$result, $decodedResponse];
     }
