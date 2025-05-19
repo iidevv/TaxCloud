@@ -581,12 +581,43 @@ class TaxCore extends \XLite\Base\Singleton
         $messages = [];
         $data = $this->getInformation($order, $messages);
         if ($data) {
-            return $this->createTransactionRequest($data) ?: $result;
+            return $this->createLookupRequest($data) ?: $result;
         } else {
             $result[0] = $messages;
         }
 
         return $result;
+    }
+
+    /**
+     * Authorize and Capture
+     *
+     * @param \XLite\Model\Order $order Order
+     *
+     * @return bool
+     */
+    public function AuthorizeAndCapture(\XLite\Model\Order $order)
+    {
+        $data = [
+            'cartID' => (string) $order->getOrderId(),
+            "orderID" => (string) $order->getOrderNumber(),
+            'customerID' => (string) $order->getOrigProfile()->getProfileId(),
+            "dateAuthorized" => date('Y-m-d'),
+            "dateCaptured" => date('Y-m-d', $order->getDate()),
+        ];
+
+        [$result, $response] = $this->taxcloudRequest('AuthorizedWithCapture', $data);
+
+        if ($response['ResponseType'] === 3) {
+            return true;
+        } else {
+            $this->getLogger('TaxCloud')->error('AuthorizeAndCapture error:', [
+                $data,
+                $response
+            ]);
+        }
+
+        return false;
     }
 
     /**
@@ -620,7 +651,7 @@ class TaxCore extends \XLite\Base\Singleton
                 $errors[] = $message['Message'];
             }
 
-            $this->getLogger('Iidev->TaxCloud')->error('', $errors);
+            $this->getLogger('TaxCloud')->error('', $errors);
         } elseif (!empty($data['CartItemsResponse'])) {
             foreach ($data['CartItemsResponse'] as $row) {
                 if ($row['TaxAmount'] > 0) {
@@ -657,8 +688,8 @@ class TaxCore extends \XLite\Base\Singleton
         $destinationZip4 = (int) substr($destination->getZipcode(), 6, 4);
 
         $post = [
-            'cartID' => $order->getOrderId(),
-            'customerID' => $order->getProfile()->getProfileId(),
+            'cartID' => (string) $order->getOrderId(),
+            'customerID' => (string) $order->getOrigProfile()->getProfileId(),
             'deliveredBySeller' => false,
             'cartItems' => [],
             'origin' => [
@@ -746,49 +777,6 @@ class TaxCore extends \XLite\Base\Singleton
     }
 
     /**
-     * Returns true if "Set Commit as true on place order" option is enabled
-     *
-     * @return bool
-     */
-    public function isCommitOnPlaceOrder()
-    {
-        return false;
-    }
-
-    /**
-     * Returns true if "Set Commit as true on place order" option is enabled
-     *
-     * @return bool
-     */
-    public function shouldRecordTransaction()
-    {
-        return false;
-    }
-
-    /**
-     * Returns true if "Order is shippable and shipping address has state Colorado"
-     *
-     * @param \XLite\Model\Order $order Order
-     *
-     * @return bool
-     */
-    protected static function shouldAddColoradoTax($order)
-    {
-        if (Main::isColoradoRetailDeliveryFeeCollectionEnabled() && $order->isShippable()) {
-            if (!$order->getProfile()->isSameAddress() && $order->getProfile()->getShippingAddress()) {
-                $address = $order->getProfile()->getShippingAddress();
-            } else {
-                $address = $order->getProfile()->getBillingAddress();
-            }
-            $state = $address->getState();
-
-            return $state && $state->getCode() === self::COLORADO_FEE_STATE_CODE;
-        }
-
-        return false;
-    }
-
-    /**
      * @param array $post
      *
      * @return array
@@ -808,7 +796,7 @@ class TaxCore extends \XLite\Base\Singleton
 
     // }}}
 
-    protected function createTransactionRequest(array $data): array
+    protected function createLookupRequest(array $data): array
     {
         $result = [false, []];
         if ($data) {
@@ -843,7 +831,7 @@ class TaxCore extends \XLite\Base\Singleton
             : null;
 
         if ($config->debugmode) {
-            $this->getLogger('Iidev->TaxCloud')->error('API request', [
+            $this->getLogger('TaxCloud')->error('API request', [
                 'url' => $fullURL,
                 'request' => $data,
                 'response' => $decodedResponse,

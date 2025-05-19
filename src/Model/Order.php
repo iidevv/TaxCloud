@@ -7,6 +7,7 @@ use XCart\Extender\Mapping\Extender;
 use Doctrine\ORM\Mapping as ORM;
 use Iidev\TaxCloud\Core\TaxCore;
 use Iidev\TaxCloud\Logic\Order\Modifier\StateTax;
+use Iidev\TaxCloud\Model\TaxCloudStatuses;
 
 /**
  * Order
@@ -22,6 +23,33 @@ class Order extends \XLite\Model\Order
      * @ORM\Column (type="boolean")
      */
     protected $taxCloudErrorsFlag = false;
+
+    /**
+     * TaxCloud import flag
+     *
+     * @var boolean
+     *
+     * @ORM\Column (type="boolean")
+     */
+    protected $taxCloudImported = false;
+
+    /**
+     * Set TaxCloud import flag
+     */
+    public function setTaxCloudImported($taxCloudImported)
+    {
+        $this->taxCloudImported = $taxCloudImported;
+
+        return $this;
+    }
+
+    /**
+     * Get TaxCloud import flag
+     */
+    public function getTaxCloudImported()
+    {
+        return $this->taxCloudImported;
+    }
 
     /**
      * Called when an order successfully placed by a client
@@ -139,5 +167,48 @@ class Order extends \XLite\Model\Order
 
         /** @var \XLite\Logic\Order\Modifier\AModifier $modifier */
         return $modifier->isSurchargeOwner($surcharge);
+    }
+
+    public function processStatus($status, $type)
+    {
+        parent::processStatus($status, $type);
+
+        if (!$this->getPaymentStatus())
+            return;
+
+        $oldPaymentStatus = $this->getOldPaymentStatusCode();
+
+        if (!$oldPaymentStatus)
+            return;
+
+        if (!$this->getTaxCloudStatusesByOrderStatuses())
+            return;
+
+        if (!$this->isTaxCloudTransactionsApplicable())
+            return;
+
+        if ($this->getTaxCloudImported())
+            return;
+
+        $isCaptured = TaxCore::getInstance()->AuthorizeAndCapture($this);
+
+        if ($isCaptured) {
+            $this->setTaxCloudImported(true);
+        }
+    }
+
+
+    private function getTaxCloudStatusesByOrderStatuses(): ?TaxCloudStatuses
+    {
+        if (!$this->getPaymentStatus() || !$this->getShippingStatus())
+            return null;
+
+        /** @var TaxCloudStatuses $result */
+        $result = \Xlite\Core\Database::getRepo(TaxCloudStatuses::class)->findOneBy([
+            'paymentStatus' => $this->getPaymentStatus()->getId(),
+            'shippingStatus' => $this->getShippingStatus()->getId(),
+        ]);
+
+        return $result;
     }
 }

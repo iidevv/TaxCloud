@@ -96,7 +96,7 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
 
         $cached = $cacheDriver->fetch($cacheKey);
 
-        if ($cached && !TaxCore::getInstance()->shouldRecordTransaction()) {
+        if ($cached) {
             $error = null;
             $taxes = $cached;
         } elseif ($this->canBeCalculatedNow()) {
