@@ -39,12 +39,6 @@ abstract class Processor extends \XLite\Model\Payment\Base\Processor
                     && !in_array($newBackendTransaction->getId(), $oldBackendTransactionsIds)
                     && !in_array($newBackendTransaction->getStatus(), TaxCore::FAILED_BACKEND_STATUSES)
                 ) {
-                    if ($transaction->getOrder()->getTaxCloudNumber() !== 0) {
-                        \XLite\Core\TopMessage::addWarning(
-                            'Ensure the Order Subtotal matches the paid amount for accurate tax reporting. Recalculate the subtotal'
-                        );
-                    }
-
                     // don't rely on $newBackendTransaction->getPaymentTransaction()->getOrder() here
                     if (empty($orderForReference) && \XLite\Core\Request::getInstance()->order_number) {
                         $orderForReference = \XLite\Core\Database::getRepo('XLite\Model\Order')
