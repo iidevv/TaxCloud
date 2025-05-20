@@ -58,18 +58,6 @@ class TaxCore extends \XLite\Base\Singleton
         return $this->valid;
     }
 
-    public function adjustTransactionRequest(\Iidev\TaxCloud\Model\Order $order, string $reason, string $reasonDescription = '')
-    {
-        $messages = [];
-        $oldOrderData = $this->getInformation($order, $messages);
-        $dataProvider = new DataProvider\Order($order);
-        $data = $dataProvider->getAdjustTransactionModel($oldOrderData, $reason, $reasonDescription);
-        $this->taxcloudRequest(
-            "Returned",
-            $data
-        );
-    }
-
     public function refundTransactionRequest(\XLite\Model\Payment\BackendTransaction $transaction, $order = null)
     {
         $dataProvider = new DataProvider\Order($order ?: $transaction->getPaymentTransaction()->getOrder());
@@ -80,17 +68,18 @@ class TaxCore extends \XLite\Base\Singleton
         );
     }
 
-    public function voidTransactionRequest(\Iidev\TaxCloud\Model\Order $order, string $reason = self::DOC_VOIDED)
+    public function voidTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
     {
-        $dataProvider = new DataProvider\Order($order);
-        $data = $dataProvider->getVoidTransactionModel($reason);
+        $data = [
+            "orderID" => (string) $order->getOrderNumber(),
+            "returnedDate" => date('Y-m-d'),
+        ];
+
         $this->taxcloudRequest(
             "Returned",
             $data
         );
     }
-
-    // {{{ Test connection
 
     /**
      * Test connection
@@ -111,9 +100,6 @@ class TaxCore extends \XLite\Base\Singleton
         return $result;
     }
 
-    // }}}
-
-    // {{{ Address validation
 
     /**
      * Validate address
@@ -556,10 +542,6 @@ class TaxCore extends \XLite\Base\Singleton
         return $state ? $state->getStateId() : null;
     }
 
-    // }}}
-
-    // {{{ Tax calculation
-
     /**
      * Final calculation flag
      *
@@ -601,7 +583,7 @@ class TaxCore extends \XLite\Base\Singleton
         $data = [
             'cartID' => (string) $order->getOrderId(),
             "orderID" => (string) $order->getOrderNumber(),
-            'customerID' => (string) $order->getOrigProfile()->getProfileId(),
+            'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
             "dateAuthorized" => date('Y-m-d'),
             "dateCaptured" => date('Y-m-d', $order->getDate()),
         ];
@@ -689,7 +671,7 @@ class TaxCore extends \XLite\Base\Singleton
 
         $post = [
             'cartID' => (string) $order->getOrderId(),
-            'customerID' => (string) $order->getOrigProfile()->getProfileId(),
+            'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
             'deliveredBySeller' => false,
             'cartItems' => [],
             'origin' => [
@@ -723,7 +705,7 @@ class TaxCore extends \XLite\Base\Singleton
 
             $post['cartItems'][] = [
                 'Index' => $i,
-                'ItemID' => $this->assembleItemCode($item),
+                'ItemID' => $item->getSku(),
                 'Price' => $unitPrice,
                 'Qty' => $amount,
                 'TIC' => (int) $item->getProduct()->getTaxCloudCode(),
@@ -755,18 +737,6 @@ class TaxCore extends \XLite\Base\Singleton
     }
 
     /**
-     * Assemble item code
-     *
-     * @param \XLite\Model\OrderItem $item Order item
-     *
-     * @return string
-     */
-    protected function assembleItemCode(\XLite\Model\OrderItem $item)
-    {
-        return substr($item->getSku(), 0, 50);
-    }
-
-    /**
      * Check - is it last tax calculation or not
      *
      * @return boolean
@@ -793,8 +763,6 @@ class TaxCore extends \XLite\Base\Singleton
 
         return $post;
     }
-
-    // }}}
 
     protected function createLookupRequest(array $data): array
     {

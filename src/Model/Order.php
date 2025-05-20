@@ -85,7 +85,7 @@ class Order extends \XLite\Model\Order
         parent::prepareBeforeRemove();
 
         if ($this->isTaxCloudTransactionsApplicable() && $this->getOrderNumber()) {
-            TaxCore::getInstance()->voidTransactionRequest($this, TaxCore::DOC_DELETED);
+            TaxCore::getInstance()->voidTransactionRequest($this);
         }
     }
 
@@ -96,16 +96,6 @@ class Order extends \XLite\Model\Order
     {
         if ($this->isTaxCloudTransactionsApplicable()) {
             TaxCore::getInstance()->voidTransactionRequest($this);
-        }
-    }
-
-    /**
-     * A "change status" handler for taxcloudAdjustTransaction, is set in \Iidev\TaxCloud\Model\Order\Status\Payment
-     */
-    public function processTaxCloudAdjustTransaction()
-    {
-        if ($this->isTaxCloudTransactionsApplicable()) {
-            TaxCore::getInstance()->adjustTransactionRequest($this, TaxCore::PRICE_ADJUSTED);
         }
     }
 
