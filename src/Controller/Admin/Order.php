@@ -28,8 +28,8 @@ class Order extends \XLite\Controller\Admin\Order
      */
     protected function orderUpdatedCallback(array $diff, \XLite\Model\Order $order)
     {
-        if ($diff && TaxCore::getInstance()->isValid() && $order->hasTaxCloudTaxes()) {
-            // TaxCore::getInstance()->adjustTransactionRequest($order, TaxCore::OTHER, print_r($diff, true));
+        if ($diff && !empty($diff['TAXCLOUD.summary']) && TaxCore::getInstance()->isValid() && $order->hasTaxCloudTaxes() && $order->getTaxCloudImported()) {
+            TaxCore::getInstance()->adjustTransactionRequest($order);
         }
     }
 }

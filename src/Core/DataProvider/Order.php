@@ -19,7 +19,7 @@ class Order
         $currency = $this->order->getCurrency();
 
         $result = [
-            "orderID" => (string) $this->order->getOrderNumber(),
+            "orderID" => "{$this->order->getOrderNumber()}-{$this->order->getTaxCloudNumber()}",
             "returnedDate" => date('Y-m-d'),
         ];
 

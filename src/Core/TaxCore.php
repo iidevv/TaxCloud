@@ -3,8 +3,9 @@
 
 namespace Iidev\TaxCloud\Core;
 
-use Iidev\TaxCloud\Main;
 use XLite\InjectLoggerTrait;
+use XLite\Core\Database;
+
 use function PHPUnit\Framework\isNull;
 
 /**
@@ -59,7 +60,7 @@ class TaxCore extends \XLite\Base\Singleton
     public function voidTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
     {
         $data = [
-            "orderID" => (string) $order->getOrderNumber(),
+            "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
             "returnedDate" => date('Y-m-d'),
         ];
 
@@ -67,6 +68,23 @@ class TaxCore extends \XLite\Base\Singleton
             "Returned",
             $data
         );
+    }
+
+    public function adjustTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
+    {
+        $this->voidTransactionRequest($order);
+
+        $this->updateTaxCloudNumber($order);
+
+        $this->AuthorizeAndCapture($order);
+    }
+
+    private function updateTaxCloudNumber($order)
+    {
+        $order->setTaxCloudNumber($order->getTaxCloudNumber() + 1);
+
+        Database::getEM()->persist($order);
+        Database::getEM()->flush();
     }
 
     /**
@@ -151,7 +169,7 @@ class TaxCore extends \XLite\Base\Singleton
                         break;
                     case 'state_id':
                         if ($value) {
-                            $state = \XLite\Core\Database::getRepo('XLite\Model\State')->find($value);
+                            $state = Database::getRepo('XLite\Model\State')->find($value);
                             if ($state) {
                                 $result['State'] = $state->getCode();
                             }
@@ -180,11 +198,11 @@ class TaxCore extends \XLite\Base\Singleton
         }
         // Handle settings address
         elseif (is_array($address) && !empty($address['location_country'])) {
-            $country = \XLite\Core\Database::getRepo('XLite\Model\Country')
+            $country = Database::getRepo('XLite\Model\Country')
                 ->find($address['location_country']);
             $hasStates = $country && $country->hasStates();
             $state = ($address['location_state'] && $hasStates)
-                ? \XLite\Core\Database::getRepo('XLite\Model\State')->findById($address['location_state'])
+                ? Database::getRepo('XLite\Model\State')->findById($address['location_state'])
                 : null;
 
             $result['Address1'] = $address['location_address'] ?? '';
@@ -195,11 +213,11 @@ class TaxCore extends \XLite\Base\Singleton
         }
         // Handle checkout address
         elseif (is_array($address) && !empty($address['state_id'])) {
-            $country = \XLite\Core\Database::getRepo('XLite\Model\Country')
+            $country = Database::getRepo('XLite\Model\Country')
                 ->find($address['country_code']);
             $hasStates = $country && $country->hasStates();
             $state = ($address['state_id'] && $hasStates)
-                ? \XLite\Core\Database::getRepo('XLite\Model\State')->findById($address['state_id'])
+                ? Database::getRepo('XLite\Model\State')->findById($address['state_id'])
                 : null;
 
             $result['Address1'] = $address['street'] ?? '';
@@ -525,7 +543,7 @@ class TaxCore extends \XLite\Base\Singleton
      */
     protected function processAddressState($countryCode, $stateCode)
     {
-        $state = \XLite\Core\Database::getRepo('XLite\Model\State')->findOneByCountryAndCode($countryCode, $stateCode);
+        $state = Database::getRepo('XLite\Model\State')->findOneByCountryAndCode($countryCode, $stateCode);
 
         return $state ? $state->getStateId() : null;
     }
@@ -570,7 +588,7 @@ class TaxCore extends \XLite\Base\Singleton
     {
         $data = [
             'cartID' => (string) $order->getOrderId(),
-            "orderID" => (string) $order->getOrderNumber(),
+            "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
             'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
             "dateAuthorized" => date('Y-m-d'),
             "dateCaptured" => date('Y-m-d', $order->getDate()),

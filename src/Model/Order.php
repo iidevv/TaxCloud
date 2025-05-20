@@ -16,6 +16,15 @@ use Iidev\TaxCloud\Model\TaxCloudStatuses;
 class Order extends \XLite\Model\Order
 {
     /**
+     * TaxCloud Number
+     *
+     * @var integer
+     *
+     * @ORM\Column (type="integer")
+     */
+    protected $taxCloudNumber = 0;
+
+    /**
      * TaxCloud errors flag
      *
      * @var boolean
@@ -32,6 +41,25 @@ class Order extends \XLite\Model\Order
      * @ORM\Column (type="boolean")
      */
     protected $taxCloudImported = false;
+
+
+    /**
+     * Get taxCloud Number
+     */
+    public function getTaxCloudNumber()
+    {
+        return $this->taxCloudNumber;
+    }
+
+    /**
+     * Set taxCloud Number
+     */
+    public function setTaxCloudNumber($taxCloudNumber): self
+    {
+        $this->taxCloudNumber = $taxCloudNumber;
+
+        return $this;
+    }
 
     /**
      * Set TaxCloud import flag
@@ -62,8 +90,8 @@ class Order extends \XLite\Model\Order
 
         if ($this->getTaxCloudErrorsFlag()) {
             $cacheDriver = \XLite\Core\Database::getCacheDriver();
-            $cacheId     = \XLite\Core\Session::getInstance()->getID();
-            $messages    = $cacheDriver->fetch('taxcloud_last_errors' . $cacheId);
+            $cacheId = \XLite\Core\Session::getInstance()->getID();
+            $messages = $cacheDriver->fetch('taxcloud_last_errors' . $cacheId);
             \XLite\Core\OrderHistory::getInstance()->registerEvent(
                 $this->getOrderId(),
                 'TAXCLOUD_HAS_NOT_TAXES',
@@ -124,7 +152,7 @@ class Order extends \XLite\Model\Order
 
     public function hasTaxCloudTaxes(): bool
     {
-        $result     = false;
+        $result = false;
         $surcharges = $this->getSurchargesByType(\XLite\Model\Base\Surcharge::TYPE_TAX);
         foreach ($surcharges as $surcharge) {
             /** @var \XLite\Model\Order\Surcharge $surcharge */
