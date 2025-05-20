@@ -14,19 +14,7 @@ class TaxCore extends \XLite\Base\Singleton
 {
     use InjectLoggerTrait;
 
-    public const DOC_DELETED = 'DocDeleted';
-    public const DOC_VOIDED = 'DocVoided';
-
-    public const PRICE_ADJUSTED = 'PriceAdjusted';
-
     public const FAILED_BACKEND_STATUSES = [\XLite\Model\Payment\BackendTransaction::STATUS_FAILED, \XLite\Model\Payment\BackendTransaction::STATUS_INITIALIZED];
-
-    public const OTHER = 'Other';
-
-    protected const COLORADO_FEE_TEXT = 'Colorado Fee';
-    protected const COLORADO_FEE_TAX_CODE = 'OF400000';
-    protected const COLORADO_FEE_TAX_NAME = 'coloradoFee';
-    protected const COLORADO_FEE_STATE_CODE = 'CO';
 
     /**
      * Valid status
@@ -744,24 +732,6 @@ class TaxCore extends \XLite\Base\Singleton
     public function isLastTaxCalculation()
     {
         return $this->finalCalculationFlag;
-    }
-
-    /**
-     * @param array $post
-     *
-     * @return array
-     */
-    protected static function addColoradoTaxLine($post)
-    {
-        $post['lines'][] = [
-            'number' => self::COLORADO_FEE_TAX_NAME,
-            'taxCode' => self::COLORADO_FEE_TAX_CODE,
-            'description' => self::COLORADO_FEE_TEXT,
-            'quantity' => 1,
-            'amount' => 0,
-        ];
-
-        return $post;
     }
 
     protected function createLookupRequest(array $data): array
