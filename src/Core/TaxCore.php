@@ -598,6 +598,10 @@ class TaxCore extends \XLite\Base\Singleton
 
         if ($response['ResponseType'] === 3) {
             return true;
+        } else if (!empty($response['Messages'])) {
+            foreach ($response['Messages'] as $message) {
+                \XLite\Core\TopMessage::addError("TaxCloud. {$message['Message']}");
+            }
         } else {
             $this->getLogger('TaxCloud')->error('AuthorizeAndCapture error:', [
                 $data,
@@ -705,7 +709,7 @@ class TaxCore extends \XLite\Base\Singleton
             $post['destination']['Zip4'] = $destinationZip4;
         }
 
-        if($shippingCost) {
+        if ($shippingCost) {
             $post['cartItems'][] = [
                 'Index' => 0,
                 'ItemID' => "Shipping",
