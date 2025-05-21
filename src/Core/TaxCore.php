@@ -671,6 +671,7 @@ class TaxCore extends \XLite\Base\Singleton
         $destination = $order->getProfile()->getShippingAddress();
         $currency = $order->getCurrency();
         $company = $this->getConfigCompany($order);
+        $shippingCost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_SHIPPING);
 
         $originalZip4 = (int) substr($company->origin_zipcode, 6, 4);
         $destinationZip4 = (int) substr($destination->getZipcode(), 6, 4);
@@ -704,13 +705,24 @@ class TaxCore extends \XLite\Base\Singleton
             $post['destination']['Zip4'] = $destinationZip4;
         }
 
+        if($shippingCost) {
+            $post['cartItems'][] = [
+                'Index' => 0,
+                'ItemID' => "Shipping",
+                'Price' => $shippingCost,
+                'Qty' => 1,
+                'TIC' => "11000",
+                'Tax' => 0.0,
+            ];
+        }
+
         foreach ($order->getItems() as $i => $item) {
             $total = (float) $item->getTotal();
             $amount = (int) $item->getAmount();
             $unitPrice = $amount > 0 ? $currency->roundValue($total / $amount) : 0.0;
 
             $post['cartItems'][] = [
-                'Index' => $i,
+                'Index' => $i + 1,
                 'ItemID' => $item->getSku(),
                 'Price' => $unitPrice,
                 'Qty' => $amount,
