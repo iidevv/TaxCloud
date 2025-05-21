@@ -33,13 +33,8 @@ class Checkout extends \XLite\Controller\Customer\Checkout
 
             if ($this->getCart()->isTaxCloudForbidCheckout()) {
                 if ($errors) {
-                    $message = '<ul><li>'
-                        . implode('</li><li>', $errors)
-                        . '</li></ul>';
-                    \XLite\Core\TopMessage::addError(
-                        'Checkout cannot be completed because tax has not been calculated. Reasons: X',
-                        ['messages' => $message]
-                    );
+                    $message = implode(', ', $errors);
+                    \XLite\Core\TopMessage::addError($message);
                 } else {
                     \XLite\Core\TopMessage::addError(
                         'Checkout cannot be completed because tax has not been calculated due to internal problems. Please contact the site administrator.'
