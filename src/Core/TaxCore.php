@@ -49,12 +49,13 @@ class TaxCore extends \XLite\Base\Singleton
 
     public function refundTransactionRequest(\XLite\Model\Payment\BackendTransaction $transaction, $order = null)
     {
-        $dataProvider = new DataProvider\Order($order ?: $transaction->getPaymentTransaction()->getOrder());
-        $data = $dataProvider->getRefundTransactionModel($transaction);
-        $this->taxcloudRequest(
-            "Returned",
-            $data
-        );
+        if (!$transaction->isFullRefund()) {
+            \XLite\Core\TopMessage::addWarning(
+                'Recalculate the Order Subtotal with the updated amount for accurate tax reporting.'
+            );
+        }
+        
+        $this->voidTransactionRequest($order);
     }
 
     public function voidTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
@@ -64,17 +65,34 @@ class TaxCore extends \XLite\Base\Singleton
             "returnedDate" => date('Y-m-d'),
         ];
 
-        $this->taxcloudRequest(
+        [$result, $response] = $this->taxcloudRequest(
             "Returned",
             $data
         );
+
+        if ($response['ResponseType'] === 3) {
+            return true;
+        } else if (!empty($response['Messages'])) {
+            foreach ($response['Messages'] as $message) {
+                \XLite\Core\TopMessage::addError("TaxCloud. {$message['Message']}");
+            }
+        } else {
+            $this->getLogger('TaxCloud')->error('voidTransactionRequest error:', [
+                $data,
+                $response
+            ]);
+        }
+
+        return false;
     }
 
     public function adjustTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
     {
-        $this->voidTransactionRequest($order);
+        $voided = $this->voidTransactionRequest($order);
 
-        $this->updateTaxCloudNumber($order);
+        if ($voided) {
+            $this->updateTaxCloudNumber($order);
+        }
 
         $this->AuthorizeAndCapture($order);
     }
@@ -587,7 +605,7 @@ class TaxCore extends \XLite\Base\Singleton
     public function AuthorizeAndCapture(\XLite\Model\Order $order)
     {
         $data = [
-            'cartID' => (string) $order->getOrderId(),
+            'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
             "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
             'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
             "dateAuthorized" => date('Y-m-d'),
@@ -597,6 +615,10 @@ class TaxCore extends \XLite\Base\Singleton
         [$result, $response] = $this->taxcloudRequest('AuthorizedWithCapture', $data);
 
         if ($response['ResponseType'] === 3) {
+            \XLite\Core\TopMessage::addInfo(
+                'TaxCloud. The Order was successfully authorized and captured.'
+            );
+
             return true;
         } else if (!empty($response['Messages'])) {
             foreach ($response['Messages'] as $message) {
@@ -643,7 +665,7 @@ class TaxCore extends \XLite\Base\Singleton
                 $errors[] = $message['Message'];
             }
 
-            $this->getLogger('TaxCloud')->error('', $errors);
+            $this->getLogger('TaxCloud')->error('processTaxes error:', $data);
         } elseif (!empty($data['CartItemsResponse'])) {
             foreach ($data['CartItemsResponse'] as $row) {
                 if ($row['TaxAmount'] > 0) {
@@ -681,7 +703,7 @@ class TaxCore extends \XLite\Base\Singleton
         $destinationZip4 = (int) substr($destination->getZipcode(), 6, 4);
 
         $post = [
-            'cartID' => (string) $order->getOrderId(),
+            'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
             'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
             'deliveredBySeller' => false,
             'cartItems' => [],
