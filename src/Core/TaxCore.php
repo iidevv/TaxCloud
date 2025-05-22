@@ -164,8 +164,8 @@ class TaxCore extends \XLite\Base\Singleton
         $parsePostalCode = function ($postalCode) use (&$result) {
             if (!empty($postalCode)) {
                 $postalParts = explode('-', $postalCode);
-                $result['Zip5'] = (int) $postalParts[0];
-                $result['Zip4'] = isset($postalParts[1]) ? (int) $postalParts[1] : null;
+                $result['Zip5'] = $postalParts[0];
+                $result['Zip4'] = isset($postalParts[1]) ? $postalParts[1] : null;
             }
         };
 
@@ -699,8 +699,8 @@ class TaxCore extends \XLite\Base\Singleton
         $company = $this->getConfigCompany($order);
         $shippingCost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_SHIPPING);
 
-        $originalZip4 = (int) substr($company->origin_zipcode, 6, 4);
-        $destinationZip4 = (int) substr($destination->getZipcode(), 6, 4);
+        $originalZip4 = substr($company->origin_zipcode, 6, 4);
+        $destinationZip4 = substr($destination->getZipcode(), 6, 4);
 
         $post = [
             'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
@@ -712,14 +712,14 @@ class TaxCore extends \XLite\Base\Singleton
                 'Address2' => '',
                 'City' => $company->origin_city,
                 'State' => $company->originState ? $company->originState->getCode() : '',
-                'Zip5' => (int) substr($company->origin_zipcode, 0, 5),
+                'Zip5' => substr($company->origin_zipcode, 0, 5),
             ],
             'destination' => [
                 'Address1' => $destination->getStreet(),
                 'Address2' => $destination->getStreet2(),
                 'City' => $destination->getCity(),
                 'State' => $destination->getState() ? $destination->getState()->getCode() : '',
-                'Zip5' => (int) substr($destination->getZipcode(), 0, 5),
+                'Zip5' => substr($destination->getZipcode(), 0, 5),
             ],
         ];
 
@@ -739,7 +739,7 @@ class TaxCore extends \XLite\Base\Singleton
                 'ItemID' => "Shipping",
                 'Price' => $shippingCost,
                 'Qty' => 1,
-                'TIC' => (int) $shippingTic,
+                'TIC' => $shippingTic,
                 'Tax' => 0.0,
             ];
         }
