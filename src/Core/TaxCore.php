@@ -60,6 +60,10 @@ class TaxCore extends \XLite\Base\Singleton
 
     public function voidTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
     {
+        if (!$order->getTaxCloudImported()) {
+            return false;
+        }
+
         $data = [
             "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
             "returnedDate" => date('Y-m-d'),
@@ -88,11 +92,9 @@ class TaxCore extends \XLite\Base\Singleton
 
     public function adjustTransactionRequest(\Iidev\TaxCloud\Model\Order $order)
     {
-        $voided = $this->voidTransactionRequest($order);
+        $this->voidTransactionRequest($order);
 
-        if ($voided) {
-            $this->updateTaxCloudNumber($order);
-        }
+        $this->updateTaxCloudNumber($order);
 
         $this->AuthorizeAndCapture($order);
     }
@@ -607,7 +609,7 @@ class TaxCore extends \XLite\Base\Singleton
         $data = [
             'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
             "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
-            'customerID' => $this->getUserId($order->getOrigProfile()?->getLogin() ?: ''),
+            'customerID' => $this->getUserId($order->getProfile()?->getLogin() ?: ''),
             "dateAuthorized" => date('Y-m-d'),
             "dateCaptured" => date('Y-m-d', $order->getDate()),
         ];
@@ -704,7 +706,7 @@ class TaxCore extends \XLite\Base\Singleton
 
         $post = [
             'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
-            'customerID' => $this->getUserId($order->getOrigProfile()?->getLogin() ?: ''),
+            'customerID' => $this->getUserId($order->getProfile()?->getLogin() ?: ''),
             'deliveredBySeller' => false,
             'cartItems' => [],
             'origin' => [
@@ -766,9 +768,7 @@ class TaxCore extends \XLite\Base\Singleton
     {
         $tic = $item->getProduct()->getTaxCloudCode() ?: \XLite\Core\Config::getInstance()->Iidev->TaxCloud->default_tic;
 
-        if ($tic) {
-            $tic = (int) $tic;
-        } else {
+        if (!$tic) {
             $tic = 0;
         }
 
