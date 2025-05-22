@@ -64,59 +64,6 @@ class Checkout extends \XLite\Controller\Customer\Checkout
     }
 
     /**
-     * Update shipping address
-     *
-     * @return void
-     */
-    protected function updateShippingAddress()
-    {
-        $data = $this->requestData['shippingAddress'];
-
-        if ($data && $this->getCartProfile()) {
-            if (isset($data['taxCloudExemptionNumber'])) {
-                $this->getCartProfile()->setTaxCloudExemptionNumber($data['taxCloudExemptionNumber']);
-            }
-            if (isset($data['taxCloudCustomerUsageType'])) {
-                $this->getCartProfile()->setTaxCloudCustomerUsageType($data['taxCloudCustomerUsageType']);
-            }
-
-            \XLite\Core\Database::getEM()->flush();
-        }
-
-        parent::updateShippingAddress();
-    }
-
-    /**
-     * Update profile billing address
-     *
-     * @return void
-     */
-    protected function updateBillingAddress()
-    {
-        if (!empty($this->requestData['billingAddress']) && $this->getCartProfile()) {
-            $data = $this->requestData['billingAddress'];
-
-            if (isset($data['taxCloudExemptionNumber'])) {
-                $this->getCartProfile()->setTaxCloudExemptionNumber($data['taxCloudExemptionNumber']);
-            }
-            if (isset($data['taxCloudCustomerUsageType'])) {
-                $this->getCartProfile()->setTaxCloudCustomerUsageType($data['taxCloudCustomerUsageType']);
-            }
-
-            \XLite\Core\Database::getEM()->flush();
-        }
-
-        parent::updateBillingAddress();
-    }
-
-    protected function prepareAddressData(array $data, $type = 'shipping')
-    {
-        unset($data['taxCloudCustomerUsageType'], $data['taxCloudExemptionNumber']);
-
-        return parent::prepareAddressData($data, $type);
-    }
-
-    /**
      * Check TaxCloud address
      *
      * @return void

@@ -607,7 +607,7 @@ class TaxCore extends \XLite\Base\Singleton
         $data = [
             'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
             "orderID" => "{$order->getOrderNumber()}-{$order->getTaxCloudNumber()}",
-            'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
+            'customerID' => $this->getUserId($order->getOrigProfile()?->getLogin() ?: ''),
             "dateAuthorized" => date('Y-m-d'),
             "dateCaptured" => date('Y-m-d', $order->getDate()),
         ];
@@ -704,7 +704,7 @@ class TaxCore extends \XLite\Base\Singleton
 
         $post = [
             'cartID' => (string) $order->getOrderNumber() ?: (string) $order->getOrderId(),
-            'customerID' => (string) $order->getOrigProfile()?->getProfileId(),
+            'customerID' => $this->getUserId($order->getOrigProfile()?->getLogin() ?: ''),
             'deliveredBySeller' => false,
             'cartItems' => [],
             'origin' => [
@@ -833,5 +833,17 @@ class TaxCore extends \XLite\Base\Singleton
         }
 
         return [$result, $decodedResponse];
+    }
+
+    /**
+     * Get user ID
+     *
+     * @param string $login Login
+     *
+     * @return string
+     */
+    public function getUserId($login)
+    {
+        return (string) md5(strtolower($login));
     }
 }

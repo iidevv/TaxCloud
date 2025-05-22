@@ -19,18 +19,36 @@ class AdminMain extends \XLite\View\Model\Profile\AdminMain
      * @var   array
      */
     protected $taxcloudSchema = [
-        'taxCloudExemptionNumber' => [
-            self::SCHEMA_CLASS    => '\XLite\View\FormField\Input\Text',
-            self::SCHEMA_LABEL    => 'Exemption number',
-            self::SCHEMA_MODEL_ATTRIBUTES => [
-                \XLite\View\FormField\Input\Base\StringInput::PARAM_MAX_LENGTH => 'length',
-            ],
-        ],
-        'taxCloudCustomerUsageType' => [
-            self::SCHEMA_CLASS    => '\Iidev\TaxCloud\View\FormField\Select\CustomerUsageTypes',
-            self::SCHEMA_LABEL    => 'Usage type',
+        'taxcloudUserId'        => [
+            self::SCHEMA_CLASS    => '\XLite\View\FormField\Label',
+            self::SCHEMA_LABEL    => 'User ID',
+            self::SCHEMA_REQUIRED => false,
         ],
     ];
+
+    /**
+     * getDefaultFieldValue
+     *
+     * @param string $name Field name
+     *
+     * @return mixed
+     */
+    public function getDefaultFieldValue($name)
+    {
+        $value = parent::getDefaultFieldValue($name);
+
+        $login = $this->getModelObject()->getLogin();
+
+        switch ($name) {
+            case 'taxcloudUserId':
+                $value = \Iidev\TaxCloud\Core\TaxCore::getInstance()->getUserId($login);
+                break;
+
+            default:
+        }
+
+        return $value;
+    }
 
     /**
      * Return list of the class-specific sections
@@ -41,7 +59,7 @@ class AdminMain extends \XLite\View\Model\Profile\AdminMain
     {
         return parent::getProfileMainSections()
             + [
-                static::SECTION_TAXCLOUD => 'TaxCloud settings',
+                static::SECTION_TAXCLOUD => 'TaxCloud',
             ];
     }
 
