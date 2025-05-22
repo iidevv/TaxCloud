@@ -54,7 +54,7 @@ class TaxCore extends \XLite\Base\Singleton
                 'Recalculate the Order Subtotal with the updated amount for accurate tax reporting.'
             );
         }
-        
+
         $this->voidTransactionRequest($order);
     }
 
@@ -731,13 +731,15 @@ class TaxCore extends \XLite\Base\Singleton
             $post['destination']['Zip4'] = $destinationZip4;
         }
 
+        $shippingTic = \XLite\Core\Config::getInstance()->Iidev->TaxCloud->shipping_tic ?: 11000;
+
         if ($shippingCost) {
             $post['cartItems'][] = [
                 'Index' => 0,
                 'ItemID' => "Shipping",
                 'Price' => $shippingCost,
                 'Qty' => 1,
-                'TIC' => "11000",
+                'TIC' => (int) $shippingTic,
                 'Tax' => 0.0,
             ];
         }
@@ -752,7 +754,7 @@ class TaxCore extends \XLite\Base\Singleton
                 'ItemID' => $item->getSku(),
                 'Price' => $unitPrice,
                 'Qty' => $amount,
-                'TIC' => (int) $item->getProduct()->getTaxCloudCode(),
+                'TIC' => $this->getItemTic($item),
                 'Tax' => 0.0,
             ];
         }
@@ -760,6 +762,18 @@ class TaxCore extends \XLite\Base\Singleton
         return $post;
     }
 
+    private function getItemTic($item)
+    {
+        $tic = $item->getProduct()->getTaxCloudCode() ?: \XLite\Core\Config::getInstance()->Iidev->TaxCloud->default_tic;
+
+        if ($tic) {
+            $tic = (int) $tic;
+        } else {
+            $tic = 0;
+        }
+
+        return $tic;
+    }
 
     /**
      * Check - address verification is allowed or not

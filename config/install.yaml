@@ -27,6 +27,22 @@ XLite\Model\Config:
     translations:
       - code: en
         option_name: 'Tax Calculation settings'
+  - name: shipping_tic
+    category: Iidev\TaxCloud
+    type: text
+    value: '11000'
+    orderby: 2010
+    translations:
+      - code: en
+        option_name: 'Shipping TIC'
+  - name: default_tic
+    category: Iidev\TaxCloud
+    type: text
+    value: '0'
+    orderby: 2050
+    translations:
+      - code: en
+        option_name: 'Default TIC'
   - name: taxcalculation
     category: Iidev\TaxCloud
     type: checkbox
