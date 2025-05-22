@@ -731,9 +731,9 @@ class TaxCore extends \XLite\Base\Singleton
             $post['destination']['Zip4'] = $destinationZip4;
         }
 
-        $shippingTic = \XLite\Core\Config::getInstance()->Iidev->TaxCloud->shipping_tic ?: 11000;
+        $shippingTic = \XLite\Core\Config::getInstance()->Iidev->TaxCloud->shipping_tic;
 
-        if ($shippingCost) {
+        if ($shippingCost && $shippingTic) {
             $post['cartItems'][] = [
                 'Index' => 0,
                 'ItemID' => "Shipping",
