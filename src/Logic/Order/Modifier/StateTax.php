@@ -84,7 +84,7 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
             }
         }
 
-        $hash     = md5(serialize($orderState));
+        $hash = md5(serialize($orderState));
         $cacheKey = 'taxcloud_' . $hash;
 
         $surcharges = [];
@@ -111,7 +111,7 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
                 return $cost + floatval($tax['cost']);
             }, 0);
 
-            $name      = $this->code . '.summary';
+            $name = $this->code . '.summary';
             $surcharge = $this->addOrderSurcharge($name, $taxCost);
             $surcharge->setName(static::t('Taxes'));
 
@@ -172,28 +172,6 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
     }
 
     /**
-     * Return state codes that is available for US
-     *
-     * @return array
-     */
-    protected function getUsAvailableStates()
-    {
-        return @unserialize(\XLite\Core\Config::getInstance()->Iidev->TaxCloud->calctaxforus)
-            ?: [];
-    }
-
-    /**
-     * Check if calculation for specific states
-     *
-     * @return bool
-     */
-    protected function isCalculationForSpecificStates()
-    {
-        return \XLite\Core\Config::getInstance()->Iidev->TaxCloud->calctaxforus_type
-            == \Iidev\TaxCloud\View\FormField\Select\AutomaticTaxCalculateType::PARAM_SPECIFIC_STATES;
-    }
-
-    /**
      * Check - can apply this modifier - by states
      *
      * @return boolean
@@ -204,13 +182,7 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
             $address = $this->order->getProfile()->getShippingAddress()
                 ?: $this->order->getProfile()->getBillingAddress();
 
-            $states = $this->getUsAvailableStates();
-
-            return !$this->isCalculationForSpecificStates()
-                || (
-                    $address->getCountry()->getCode() === 'US'
-                    && in_array($address->getState()->getCode(), $states, true)
-                );
+            return $address->getCountry()->getCode() === 'US';
         }
 
         return false;
