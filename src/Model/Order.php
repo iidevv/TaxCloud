@@ -194,11 +194,6 @@ class Order extends \XLite\Model\Order
         if (!$this->getPaymentStatus())
             return;
 
-        $oldPaymentStatus = $this->getOldPaymentStatusCode();
-
-        if (!$oldPaymentStatus)
-            return;
-
         if (!$this->getTaxCloudStatusesByOrderStatuses())
             return;
 
