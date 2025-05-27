@@ -700,7 +700,7 @@ class TaxCore extends \XLite\Base\Singleton
         $currency = $order->getCurrency();
         $company = $this->getConfigCompany($order);
         $shippingCost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_SHIPPING);
-
+        $certificateId = $order->getProfile()?->getTaxCloudCertificateId();
         $originalZip4 = substr($company->origin_zipcode, 6, 4);
         $destinationZip4 = substr($destination->getZipcode(), 6, 4);
 
@@ -724,6 +724,10 @@ class TaxCore extends \XLite\Base\Singleton
                 'Zip5' => substr($destination->getZipcode(), 0, 5),
             ],
         ];
+
+        if ($certificateId) {
+            $post['CertificateID'] = $certificateId;
+        }
 
         if ($originalZip4) {
             $post['origin']['Zip4'] = $originalZip4;

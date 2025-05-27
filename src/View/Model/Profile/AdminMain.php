@@ -24,6 +24,13 @@ class AdminMain extends \XLite\View\Model\Profile\AdminMain
             self::SCHEMA_LABEL    => 'User ID',
             self::SCHEMA_REQUIRED => false,
         ],
+        'taxCloudCertificateId' => [
+            self::SCHEMA_CLASS    => '\XLite\View\FormField\Input\Text',
+            self::SCHEMA_LABEL    => 'Certificate ID',
+            self::SCHEMA_MODEL_ATTRIBUTES => [
+                \XLite\View\FormField\Input\Base\StringInput::PARAM_MAX_LENGTH => 'length',
+            ],
+        ],
     ];
 
     /**
