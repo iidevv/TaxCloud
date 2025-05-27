@@ -696,7 +696,14 @@ class TaxCore extends \XLite\Base\Singleton
      */
     protected function getInformation(\XLite\Model\Order $order, array &$messages)
     {
-        $destination = $order->getProfile()->getShippingAddress();
+        $destination = $order->isShippable() && !$order->getProfile()->isSameAddress() && $order->getProfile()->getShippingAddress()
+            ? $order->getProfile()->getShippingAddress()
+            : $order->getProfile()->getBillingAddress();
+        if (!$destination) {
+            $messages[] = 'The destination address is not set.';
+            return [];
+        }
+
         $currency = $order->getCurrency();
         $company = $this->getConfigCompany($order);
         $shippingCost = $order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_SHIPPING);
