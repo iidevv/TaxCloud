@@ -74,11 +74,11 @@ class Checkout extends \XLite\Controller\Customer\Checkout
 
         if (TaxCore::getInstance()->isValid() && $data) {
             $address = [
-                'street'       => $data['street'],
-                'city'         => $data['city'],
-                'state_id'     => $data['state_id'],
+                'street' => $data['street'],
+                'city' => $data['city'],
+                'state_id' => $data['state_id'],
                 'country_code' => $data['country_code'],
-                'zipcode'      => $data['zipcode'],
+                'zipcode' => $data['zipcode'],
             ];
 
             if (TaxCore::getInstance()->isAllowedAddressVerification($address)) {

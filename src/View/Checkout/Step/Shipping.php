@@ -37,20 +37,6 @@ class Shipping extends \XLite\View\Checkout\Step\Shipping
     }
 
     /**
-     * Register CSS files
-     *
-     * @return array
-     */
-    public function getCSSFiles()
-    {
-        $list = parent::getCSSFiles();
-
-        $list[] = 'modules/Iidev/TaxCloud/checkout.less';
-
-        return $list;
-    }
-
-    /**
      * Check - TaxCloud address verification is enabled or not
      *
      * @return boolean

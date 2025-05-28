@@ -262,16 +262,32 @@ class TaxCore extends \XLite\Base\Singleton
     {
         $result = [];
 
-        if (!isNull($data['ErrDescription'])) {
+        if ($data['ErrDescription']) {
             $result[] = [
                 null,
-                'message' => $data['ErrDescription'],
+                'message' => $this->processErrDescription($data['ErrDescription']),
             ];
         } else {
             $address = $this->assembleAddressSanitaizedData($address, $data);
         }
 
         return [$address, $result];
+    }
+
+    private function processErrDescription($message)
+    {
+        $result = $message;
+
+        switch ($message) {
+            case 'Address has no delivery point value':
+                $result = 'Please verify your shipping address and try again.';
+                break;
+
+            default:
+                break;
+        }
+
+        return $result;
     }
 
     /**
@@ -480,8 +496,10 @@ class TaxCore extends \XLite\Base\Singleton
                     $state->setValue($oldStateValue);
                 }
             }
-        } elseif (is_array($address) && !empty($address['Address1'])) {
+        } elseif (is_array($address) && !empty($address['street'])) {
             foreach ($data as $n => $value) {
+                $address['type'] = $data['rdi'];
+
                 if (in_array($n, ['Zip5', 'Zip4']) && isset($data['Zip5'], $data['Zip4'])) {
                     $address['zipcode'] = $data['Zip5'] . '-' . $data['Zip4'];
                     continue;
@@ -796,10 +814,11 @@ class TaxCore extends \XLite\Base\Singleton
     public function isAllowedAddressVerification($address)
     {
         $result = false;
-        if (\XLite\Core\Config::getInstance()->Iidev->TaxCloud->addressverif) {
-            $assembledAddress = $this->assembleAddressValidationRequest($address);
 
-            $result = in_array($assembledAddress['country'], ['US', 'CA']);
+        $country = $address['country_code'] ?? $address['location_country'] ?? null;
+
+        if (\XLite\Core\Config::getInstance()->Iidev->TaxCloud->addressverif) {
+            $result = in_array($country, ['US', 'CA']);
         }
 
         return $result;
