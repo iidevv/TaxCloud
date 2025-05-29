@@ -1,0 +1,26 @@
+{##
+ # Order's shipping address
+ #
+ # @ListChild (list="order.shipping.address", weight="200")
+ #}
+{% if this.isShippingAddressVisible() %}
+  <div class="address">
+    <strong>{{ t('Shipping address') }}</strong>
+    <div class="address-section shipping-address-section">{{ this.get('orderForm').displayComplexField('shippingAddress') }}</div>
+  </div>
+  {% if this.isAddressVerificationEnabled %}
+    <div class="address">
+      <p>
+        Type:
+        <strong>
+          {% if this.getShippingAddressType == 'R' %}
+            Residential
+          {% else %}
+            Commercial
+          {% endif %}
+        </strong>
+      </p>
+    </div>
+    {{ widget('XLite\\View\\Button\\Link', location=xurl('order', 'check_address', { order_id: this.getOrderId }), label=t('Check address')) }}
+  {% endif %}
+{% endif %}

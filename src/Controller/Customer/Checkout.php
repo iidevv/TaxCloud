@@ -6,12 +6,15 @@ namespace Iidev\TaxCloud\Controller\Customer;
 use XCart\Extender\Mapping\Extender;
 use Iidev\TaxCloud\Core\TaxCore;
 
+use XLite\InjectLoggerTrait;
 /**
  * Checkout
  * @Extender\Mixin
  */
 class Checkout extends \XLite\Controller\Customer\Checkout
 {
+    use InjectLoggerTrait;
+
     /**
      * Run controller
      *
@@ -90,6 +93,10 @@ class Checkout extends \XLite\Controller\Customer\Checkout
                     foreach ($messages as $message) {
                         $errors[] = static::t($message['message']);
                     }
+                }
+
+                if ($address['type'] !== $this->getCart()?->getProfile()?->getShippingAddress()?->getAddressType()) {
+                    $this->getCart()?->getProfile()?->getShippingAddress()?->addAddressType($address['type']);
                 }
             }
         }

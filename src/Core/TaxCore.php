@@ -171,42 +171,15 @@ class TaxCore extends \XLite\Base\Singleton
             }
         };
 
-        if (is_array($address) && is_object(current($address))) {
-            foreach ($address as $field) {
-                $parts = explode('_', $field->getName(), 2);
-                $fieldName = $parts[1] ?? null;
-                $value = $field->getValue();
+        if (is_object($address) && $address instanceof \XLite\Model\Address) {
+            $result = [
+                'Address1' => $address->getStreet() ?: '',
+                'Address2' => $address->getStreet2() ?: '',
+                'City' => $address->getCity() ?: '',
+                'State' => $address->getState() ? $address->getState()->getCode() : '',
+            ];
 
-                switch ($fieldName) {
-                    case 'street':
-                        $result['Address1'] = $value;
-                        break;
-                    case 'street2':
-                        $result['Address2'] = $value;
-                        break;
-                    case 'city':
-                        $result['City'] = $value;
-                        break;
-                    case 'state_id':
-                        if ($value) {
-                            $state = Database::getRepo('XLite\Model\State')->find($value);
-                            if ($state) {
-                                $result['State'] = $state->getCode();
-                            }
-                        }
-                        break;
-                    case 'custom_state':
-                        if (empty($result['State']) && $value) {
-                            $result['State'] = $value;
-                        }
-                        break;
-                    case 'country_code':
-                        break;
-                    case 'zipcode':
-                        $parsePostalCode($value);
-                        break;
-                }
-            }
+            $parsePostalCode($address->getZipcode() ?? '');
         }
         // Handle static state tax address
         elseif (is_array($address) && !empty($address['line1'])) {
@@ -264,11 +237,16 @@ class TaxCore extends \XLite\Base\Singleton
 
         if ($data['ErrDescription']) {
             $result[] = [
-                null,
                 'message' => $this->processErrDescription($data['ErrDescription']),
             ];
         } else {
             $address = $this->assembleAddressSanitaizedData($address, $data);
+        }
+
+        if (!$data['rdi'] && \XLite::isAdminZone()) {
+            $result[] = [
+                'message' => 'Address type is not specified.',
+            ];
         }
 
         return [$address, $result];
@@ -279,153 +257,10 @@ class TaxCore extends \XLite\Base\Singleton
         $result = $message;
 
         switch ($message) {
-            case 'Address has no delivery point value':
-                $result = 'Please verify your shipping address and try again.';
-                break;
-
             default:
+                $result = 'Please verify your shipping address.';
+
                 break;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Assemble address validation message
-     *
-     * @param array $message Raw message
-     * @param mixed $address Address
-     *
-     * @return array
-     */
-    protected function assembleAddressValidationMessage(array $message, $address)
-    {
-        $result = null;
-
-        if (is_array($address) && is_object(current($address))) {
-            // Address from XLite\View\Model\Address\Address
-            switch ($message['refersTo']) {
-                case 'Address':
-                case 'Address.Line0':
-                    $names = ['street'];
-                    break;
-
-                case 'Address.City':
-                    $names = ['city'];
-                    break;
-
-                case 'Address.Region':
-                    $names = ['state_id', 'custom_state'];
-                    break;
-
-                case 'Address.Country':
-                    $names = ['country_code'];
-                    break;
-
-                case 'Address.PostalCode':
-                    $names = ['zipcode'];
-                    break;
-
-                default:
-                    $names = [];
-            }
-
-            $field = null;
-            foreach ($address as $f) {
-                $parts = explode('_', $f->getName(), 2);
-                foreach ($names as $name) {
-                    if ($name == $parts[1] && $f->getValue()) {
-                        $field = $f;
-                        break 2;
-                    }
-                }
-            }
-
-            // Assemble message
-            if ($field) {
-                $result = [
-                    'name' => $field->getName(),
-                    'field' => $field,
-                    'message' => $message['details'],
-                ];
-            }
-        } elseif (is_array($address) && !empty($address['line1'])) {
-            // Address from static::getStateTax()
-            $parts = explode('.', $message['refersTo']);
-            if ($parts[0] == 'address') {
-                $result = [
-                    'name' => $parts[1],
-                    'message' => $message['details'],
-                ];
-            }
-        } elseif (is_array($address) && !empty($address['location_country'])) {
-            // Address from XLite\View\Model\Settings
-            switch ($message['refersTo']) {
-                case 'Address':
-                case 'Address.Line0':
-                    $name = 'location_address';
-                    break;
-
-                case 'Address.City':
-                    $name = 'location_city';
-                    break;
-
-                case 'Address.Region':
-                    $name = 'location_state';
-                    break;
-
-                case 'Address.Country':
-                    $name = 'location_country';
-                    break;
-
-                case 'Address.PostalCode':
-                    $name = 'location_zipcode';
-                    break;
-
-                default:
-                    $name = null;
-            }
-
-            if ($name) {
-                $result = [
-                    'name' => $name,
-                    'message' => $message['details'],
-                ];
-            }
-        } elseif (is_array($address) && !empty($address['state_id'])) {
-            // Address from XLite\Controller\Customer\Checkout
-            switch ($message['refersTo']) {
-                case 'Address':
-                case 'Address.Line0':
-                    $name = 'street';
-                    break;
-
-                case 'Address.City':
-                    $name = 'city';
-                    break;
-
-                case 'Address.Region':
-                    $name = 'state_id';
-                    break;
-
-                case 'Address.Country':
-                    $name = 'country_code';
-                    break;
-
-                case 'Address.PostalCode':
-                    $name = 'zipcode';
-                    break;
-
-                default:
-                    $name = null;
-            }
-
-            if ($name) {
-                $result = [
-                    'name' => $name,
-                    'message' => $message['details'],
-                ];
-            }
         }
 
         return $result;
@@ -441,64 +276,25 @@ class TaxCore extends \XLite\Base\Singleton
      */
     protected function assembleAddressSanitaizedData($address, array $data)
     {
-        if (is_array($address) && is_object(current($address))) {
-            $state = null;
-            $oldStateValue = null;
-            foreach ($data as $n => $value) {
-                switch ($n) {
-                    case 'Address1':
-                        $name = 'street';
-                        break;
+        if (is_object($address) && $address instanceof \XLite\Model\Address) {
+            $address->setZipcode(
+                isset($data['Zip5'], $data['Zip4'])
+                ? $data['Zip5'] . '-' . $data['Zip4']
+                : $data['Zip5'] ?? ''
+            );
 
-                    case 'City':
-                        $name = 'city';
-                        break;
-
-                    case 'State':
-                        $name = 'state_id';
-                        break;
-
-                    case 'Zip5':
-                    case 'Zip4':
-                        $name = 'zipcode';
-                        break;
-
-                    default:
-                        $name = null;
-                }
-
-                if ($name) {
-                    foreach ($address as $f) {
-                        $parts = explode('_', $f->getName(), 2);
-                        if ($name == $parts[1]) {
-                            if ($name === 'state_id') {
-                                $state = $f;
-                                $oldStateValue = $f->getValue();
-                            }
-
-                            // Concatenate ZIP5 and ZIP4
-                            if ($name === 'zipcode' && isset($data['Zip5'], $data['Zip4'])) {
-                                $value = $data['Zip5'] . '-' . $data['Zip4'];
-                            }
-
-                            $f->setValue($value);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if ($state) {
-                $sid = $this->processAddressState(null, $state->getValue());
-                if ($sid) {
-                    $state->setValue($sid);
-                } else {
-                    $state->setValue($oldStateValue);
-                }
+            if ($data['rdi'] && $data['rdi'] === 'Commercial') {
+                $address->setAddressType('C');
+            } elseif ($data['rdi'] && $data['rdi'] === 'Residential') {
+                $address->setAddressType('R');
             }
         } elseif (is_array($address) && !empty($address['street'])) {
             foreach ($data as $n => $value) {
-                $address['type'] = $data['rdi'];
+                if ($data['rdi'] && $data['rdi'] === 'Commercial') {
+                    $address['type'] = 'C';
+                } elseif ($data['rdi'] && $data['rdi'] === 'Residential') {
+                    $address['type'] = 'R';
+                }
 
                 if (in_array($n, ['Zip5', 'Zip4']) && isset($data['Zip5'], $data['Zip4'])) {
                     $address['zipcode'] = $data['Zip5'] . '-' . $data['Zip4'];
@@ -813,15 +609,21 @@ class TaxCore extends \XLite\Base\Singleton
      */
     public function isAllowedAddressVerification($address)
     {
-        $result = false;
+        $country = null;
 
-        $country = $address['country_code'] ?? $address['location_country'] ?? null;
-
-        if (\XLite\Core\Config::getInstance()->Iidev->TaxCloud->addressverif) {
-            $result = in_array($country, ['US', 'CA']);
+        if (is_object($address)) {
+            $country = $address->getCountry() ? $address->getCountry()->getCode() : null;
+        } elseif (is_array($address)) {
+            $country = $address['country_code'] ?? $address['location_country'];
+        } else {
+            return false;
         }
 
-        return $result;
+        if (\XLite\Core\Config::getInstance()->Iidev->TaxCloud->addressverif) {
+            return in_array($country, ['US']);
+        }
+
+        return false;
     }
 
     /**
