@@ -571,22 +571,72 @@ class TaxCore extends \XLite\Base\Singleton
             ];
         }
 
-        foreach ($order->getItems() as $i => $item) {
-            $total = (float) $item->getTotal();
-            $amount = (int) $item->getAmount();
-            $unitPrice = $amount > 0 ? $currency->roundValue($total / $amount) : 0.0;
+        $post['cartItems'] = array_merge($post['cartItems'], $this->getItems($order, $currency));
 
-            $post['cartItems'][] = [
+        return $post;
+    }
+
+    /**
+     * Get cart items with distributed discount
+     *
+     * @param \XLite\Model\Order $order
+     * @param \XLite\Model\Currency $currency
+     * @return array
+     */
+    protected function getItems(\XLite\Model\Order $order, \XLite\Model\Currency $currency)
+    {
+        $items = [];
+
+        $totalDiscount = $this->getTotalDiscount($order);
+
+        $subtotal = $order->getSubtotal();
+
+        foreach ($order->getItems() as $i => $item) {
+            $itemTotal = (float) $item->getTotal();
+            $amount = (int) $item->getAmount();
+            $discountPercent = $subtotal > 0 ? $itemTotal / $subtotal * 100 : 0.0;
+            $itemDiscount = $currency->roundValue($totalDiscount / 100 * $discountPercent);
+            $unitPrice = $amount > 0 ? $currency->roundValue($itemTotal / $amount) : 0.0;
+
+            $discountedUnitPrice = max(0.0, $unitPrice - ($itemDiscount / $amount));
+            
+            $items[] = [
                 'Index' => $i + 1,
                 'ItemID' => $item->getSku(),
-                'Price' => $unitPrice,
+                'Price' => $currency->roundValue($discountedUnitPrice),
                 'Qty' => $amount,
                 'TIC' => $this->getItemTic($item),
-                'Tax' => 0.0,
             ];
         }
 
-        return $post;
+        return $items;
+    }
+
+    private function getTotalDiscount(\XLite\Model\Order $order)
+    {
+        $totalDiscount = 0.0;
+
+        $totalDiscount += abs($order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_DISCOUNT) ?: 0.0);
+
+        if (!\XLite::isAdminZone()) {
+            $rewardPoints = Database::getRepo(\XLite\Model\Order\Surcharge::class)
+                ->findOneBy([
+                    'owner' => $order,
+                    'code' => 'REWARDPOINTS',
+                ]);
+
+            if ($rewardPoints) {
+                $totalDiscount += abs($rewardPoints->getValue());
+            }
+        }
+
+        $this->getLogger('totalDiscount')->error('', [
+            'orderId' => $order->getOrderId(),
+            'totalDiscount' => $totalDiscount,
+            'rewardPoints' => $rewardPoints ? $rewardPoints->getValue() : null,
+        ]);
+
+        return $totalDiscount;
     }
 
     private function getItemTic($item)
