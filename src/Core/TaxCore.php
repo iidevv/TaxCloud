@@ -618,24 +618,6 @@ class TaxCore extends \XLite\Base\Singleton
 
         $totalDiscount += abs($order->getSurchargeSumByType(\XLite\Model\Base\Surcharge::TYPE_DISCOUNT) ?: 0.0);
 
-        if (!\XLite::isAdminZone()) {
-            $rewardPoints = Database::getRepo(\XLite\Model\Order\Surcharge::class)
-                ->findOneBy([
-                    'owner' => $order,
-                    'code' => 'REWARDPOINTS',
-                ]);
-
-            if ($rewardPoints) {
-                $totalDiscount += abs($rewardPoints->getValue());
-            }
-        }
-
-        $this->getLogger('totalDiscount')->error('', [
-            'orderId' => $order->getOrderId(),
-            'totalDiscount' => $totalDiscount,
-            'rewardPoints' => $rewardPoints ? $rewardPoints->getValue() : null,
-        ]);
-
         return $totalDiscount;
     }
 
