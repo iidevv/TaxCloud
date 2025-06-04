@@ -84,6 +84,10 @@ class StateTax extends \XLite\Logic\Order\Modifier\ATax
             }
         }
 
+        if($this->order->getRedeemedRewardPoints()) {
+            $orderState['redeemedRewardPoints'] = $this->order->getRedeemedRewardPoints();
+        }
+        
         $hash = md5(serialize($orderState));
         $cacheKey = 'taxcloud_' . $hash;
 
